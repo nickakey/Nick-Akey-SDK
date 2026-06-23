@@ -29,7 +29,6 @@ const lotr = new Lotr({ apiKey: process.env.LOTR_API_KEY });
 
 const movies = await lotr.movies.list({
   filter: { academyAwardWins: { $gte: 1 } },
-  sort: { boxOfficeRevenueInMillions: 'desc' },
   limit: 5,
 });
 

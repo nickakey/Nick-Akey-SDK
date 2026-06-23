@@ -27,7 +27,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown ./src/index.ts --format esm,cjs --dts --clean --sourcemap",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
