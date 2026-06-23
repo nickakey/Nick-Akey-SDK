@@ -2,12 +2,15 @@
  * Types describing how callers query a resource: filtering, sorting, pagination,
  * and the shape of a returned page.
  *
- * The filter surface deliberately borrows MongoDB's operator vocabulary
- * (`$gt`, `$in`, `$exists`, …) rather than inventing a new one, and is
- * *field-aware*: comparison operators are only offered on numeric fields, regex
- * only on string fields, and every value is typed against its field. This is the
- * API's documented contract — not the full capability of its underlying query
- * parser (see design.md).
+ * Since the code for the actual API uses ` mongoose-query-parser ` under thehood, I  deliberately borrowing from MongoDB's operator vocabulary instead of creating something new
+ * E.G. (`$gt`, `$in`, `$exists`, …) rather than inventing a new one,
+ *
+ *
+ * filters are *type-aware*:
+ * E.G.
+ *  - comparison operators are only offered on numeric fields,
+ *    regex only on string fields,
+ *    and every value is typed against its individual field.
  */
 
 /** Operators available on a numeric field. */
@@ -18,11 +21,8 @@ export interface NumberOperators {
   $gte?: number;
   $lt?: number;
   $lte?: number;
-  /** Field value is one of these (`$in`). */
   $in?: number[];
-  /** Field value is none of these (`$nin`). */
   $nin?: number[];
-  /** Whether the field is present on the document. */
   $exists?: boolean;
 }
 
@@ -56,12 +56,18 @@ export type Filter<T> = {
 export type SortDirection = 'asc' | 'desc';
 
 /**
- * Sort specification keyed by the resource's fields. The API supports a single
- * sort field; if multiple are given, the first is used.
+ * Sort specification. The API supports a single sort field, so this models
+ * exactly one — the type makes that limit visible rather than silently dropping
+ * extra fields.
+ *
+ * @example
+ * { field: 'boxOfficeRevenueInMillions', direction: 'desc' }
  */
-export type Sort<T> = {
-  [K in keyof T]?: SortDirection;
-};
+export interface Sort<T> {
+  field: keyof T;
+  /** Defaults to `'asc'`. */
+  direction?: SortDirection;
+}
 
 /** Pagination controls common to every list call. */
 export interface PaginationOptions {

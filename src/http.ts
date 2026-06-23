@@ -12,6 +12,8 @@ export interface HttpClientConfig {
 }
 
 const INITIAL_RETRY_DELAY_MS = 500;
+
+//todo - whats the diff between these two?
 const MAX_RETRY_DELAY_MS = 5_000;
 const MAX_RETRY_AFTER_MS = 60_000;
 
@@ -52,10 +54,10 @@ export class HttpClient {
       } catch (cause) {
         // No response at all (DNS, TLS, socket). Retry, then surface.
         if (attempt < this.#maxRetries) {
-          await sleep(backoffMs(attempt));
+          await sleep(getBackoffMs(attempt));
           continue;
         }
-        throw new LotrConnectionError(`Network request to ${url} failed: ${errorMessage(cause)}`, {
+        throw new LotrConnectionError(`Network request to ${url} failed: ${parseErrorMessage(cause)}`, {
           url,
           code: 'connection_error',
         });
@@ -66,7 +68,7 @@ export class HttpClient {
       }
 
       if (isRetryableStatus(response.status) && attempt < this.#maxRetries) {
-        await sleep(backoffMs(attempt, retryAfterMs(response.headers)));
+        await sleep(getBackoffMs(attempt, getRetryAfterMsFromHeaders(response.headers)));
         continue;
       }
 
@@ -82,27 +84,41 @@ export function isRetryableStatus(status: number): boolean {
 }
 
 /**
- * Exponential backoff with jitter (stripe-node's formula): grow the delay
- * geometrically, randomize it to 50–100% to avoid thundering herds, floor it at
- * the initial delay, and — when the server sent `Retry-After` — wait at least
- * that long (capped at 60s).
+ * Exponential backoff with jitter (stripe-node's formula): 
+ * grow the delay geometrically, 
+ * randomize it to 50–100% to avoid thundering herds, 
+ * floor it at the initial delay, 
+ * and — when the server sent `Retry-After` — wait at least that long (capped at 60s).
  */
-export function backoffMs(
+export function getBackoffMs(
   attempt: number,
   retryAfterMillis?: number,
   random: () => number = Math.random,
 ): number {
+
+  //set initial delay
   let delay = Math.min(INITIAL_RETRY_DELAY_MS * 2 ** attempt, MAX_RETRY_DELAY_MS);
+
+  //add jitter
   delay *= 0.5 * (1 + random());
+
+  //never wait less than 500ms even if jitter would have made it smaller
   delay = Math.max(INITIAL_RETRY_DELAY_MS, delay);
+
+  /**
+   * Honor Retry-After for automatic retries, but cap at 60s so a single
+   * `request()` call doesn't block for minutes. Longer cooldowns are still
+   * exposed on LotrRateLimitError.retryAfter for the caller to handle.
+   * Tradeoff: we may retry before the server wants and burn a retry attempt.
+   */
   if (retryAfterMillis !== undefined) {
     delay = Math.min(Math.max(delay, retryAfterMillis), MAX_RETRY_AFTER_MS);
   }
   return delay;
 }
 
-function retryAfterMs(headers: Headers): number | undefined {
-  const value = headers.get('retry-after');
+function getRetryAfterMsFromHeaders(headers: Headers): number | undefined {
+  const value = headers.get('Retry-after');
   if (!value) return undefined;
   const seconds = Number(value);
   return Number.isFinite(seconds) ? seconds * 1_000 : undefined;
@@ -130,6 +146,6 @@ function redactHeaders(headers: Headers): Headers {
   return clone;
 }
 
-function errorMessage(cause: unknown): string {
+function parseErrorMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
 }

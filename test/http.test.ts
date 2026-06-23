@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { HttpClient, backoffMs, isRetryableStatus } from '../src/http';
+import { HttpClient, getBackoffMs, isRetryableStatus } from '../src/http';
 import {
   LotrAPIError,
   LotrConnectionError,
@@ -36,7 +36,8 @@ describe('HttpClient.request', () => {
   it('appends a pre-built query string', async () => {
     const fetchStub = queuedFetch([response(200, envelope([]))]);
     await makeClient(fetchStub).request('/movie', 'name=Gandalf&limit=2');
-    expect(fetchStub.mock.calls[0][0]).toBe('https://api.test/v2/movie?name=Gandalf&limit=2');
+    const [url] = fetchStub.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('https://api.test/v2/movie?name=Gandalf&limit=2');
   });
 
   it('retries a 5xx and then succeeds', async () => {
@@ -138,24 +139,24 @@ describe('isRetryableStatus', () => {
   });
 });
 
-describe('backoffMs', () => {
+describe('getBackoffMs', () => {
   it('floors at the initial delay regardless of jitter', () => {
-    expect(backoffMs(0, undefined, () => 0)).toBe(500);
-    expect(backoffMs(0, undefined, () => 1)).toBe(500);
+    expect(getBackoffMs(0, undefined, () => 0)).toBe(500);
+    expect(getBackoffMs(0, undefined, () => 1)).toBe(500);
   });
 
   it('grows geometrically with the attempt', () => {
-    expect(backoffMs(1, undefined, () => 1)).toBe(1000);
-    expect(backoffMs(2, undefined, () => 1)).toBe(2000);
+    expect(getBackoffMs(1, undefined, () => 1)).toBe(1000);
+    expect(getBackoffMs(2, undefined, () => 1)).toBe(2000);
   });
 
   it('caps the base delay at the max', () => {
     // attempt 5 would be 500 * 2^5 = 16000, capped to 5000
-    expect(backoffMs(5, undefined, () => 1)).toBe(5000);
+    expect(getBackoffMs(5, undefined, () => 1)).toBe(5000);
   });
 
   it('waits at least Retry-After, capped at 60s', () => {
-    expect(backoffMs(0, 30_000, () => 0)).toBe(30_000);
-    expect(backoffMs(0, 120_000, () => 0)).toBe(60_000);
+    expect(getBackoffMs(0, 30_000, () => 0)).toBe(30_000);
+    expect(getBackoffMs(0, 120_000, () => 0)).toBe(60_000);
   });
 });

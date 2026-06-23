@@ -17,7 +17,6 @@ export interface Movie {
 }
 
 export interface Quote {
-
   id: string;
   dialog: string;
   /** Id of the movie this quote is from. */

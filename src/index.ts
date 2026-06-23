@@ -7,7 +7,7 @@
  * const lotr = new Lotr({ apiKey: process.env.LOTR_API_KEY });
  * const oscarWinners = await lotr.movies.list({
  *   filter: { academyAwardWins: { $gte: 1 } },
- *   sort: { boxOfficeRevenueInMillions: 'desc' },
+ *   sort: { field: 'boxOfficeRevenueInMillions', direction: 'desc' },
  * });
  */
 

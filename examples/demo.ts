@@ -23,7 +23,7 @@ async function main(): Promise<void> {
   console.log('\n— Oscar-winning movies, by box office —');
   const movies = await lotr.movies.list({
     filter: { academyAwardWins: { $gte: 1 } },
-    sort: { boxOfficeRevenueInMillions: 'desc' },
+    sort: { field: 'boxOfficeRevenueInMillions', direction: 'desc' },
     limit: 5,
   });
   for (const movie of movies.results) {

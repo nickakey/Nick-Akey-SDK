@@ -2,6 +2,15 @@
 
 This document explains how the SDK is built and why. The brief was to wrap the movie and quote endpoints of [the-one-api.dev](https://the-one-api.dev/), "as if you were implementing all the endpoints" — so the design optimizes for clarity, extensibility, and production-readiness over covering the literal five routes.
 
+## The TLDR:
+- I borrowed SDK conventions from the great stripe-sdk
+- The design of this SDK is meant to 
+  1: Make adding new resources very easy (just extend BaseResource) and still flexible ( see nesting quotes within movies )
+  2: Make the typing really great and automatic for the developer. (Even the filters are typed)
+- On filtering, I decided to try and keep it as close to mongodb conventions as possible, since that's what they API is using under the hood
+- There is some automatic retrying & sensible handling of rate limits
+- zero runtime depedencies
+
 ## Architecture
 
 A single `Lotr` client exposes resource namespaces, each backed by a generic base class:

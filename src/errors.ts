@@ -32,6 +32,7 @@ export class LotrError extends Error {
     this.headers = options.headers;
     this.body = options.body;
     // Keep `instanceof` working when compiled down to older targets.
+    // https://github.com/microsoft/TypeScript/wiki/Breaking-Changes#extending-built-ins-like-error-array-and-map-may-no-longer-work
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }
@@ -72,7 +73,7 @@ export function errorFromResponse(
   headers: Headers,
   body: unknown,
 ): LotrError {
-  const message = messageFromBody(body) ?? defaultMessage(statusCode);
+  const message = getMessageFromBody(body) ?? getDefaultMessageFromStatusCode(statusCode);
   const options: LotrErrorOptions = { statusCode, url, headers, body };
 
   switch (statusCode) {
@@ -96,7 +97,7 @@ export function errorFromResponse(
 }
 
 /** Pull a human message out of the API's `{ message }` error body, if present. */
-function messageFromBody(body: unknown): string | undefined {
+function getMessageFromBody(body: unknown): string | undefined {
   if (body && typeof body === 'object' && 'message' in body) {
     const message = (body as { message: unknown }).message;
     if (typeof message === 'string' && message.length > 0) return message;
@@ -104,7 +105,7 @@ function messageFromBody(body: unknown): string | undefined {
   return undefined;
 }
 
-function defaultMessage(statusCode: number): string {
+function getDefaultMessageFromStatusCode(statusCode: number): string {
   switch (statusCode) {
     case 401:
       return 'Authentication failed. Check your API key.';
@@ -119,6 +120,20 @@ function defaultMessage(statusCode: number): string {
   }
 }
 
+/** 
+ * Actual Rate Limited Error Message
+ * HEADERS
+ * X-RateLimit-Limit 100 
+ * X-RateLimit-Remaining 0
+ * X-RateLimit-Reset 1782225833
+ * Retry-After 521
+ * 
+ * BODY
+ * {
+    "success": false,
+    "message": "Too many requests, please try again later."
+   }
+ */
 function parseRetryAfterSeconds(headers: Headers): number | undefined {
   const value = headers.get('retry-after');
   if (!value) return undefined;

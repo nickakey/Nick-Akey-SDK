@@ -1,32 +1,59 @@
 import type { Filter, ListOptions, Sort } from './types/query.js';
 
 /**
+ * SUPPORTED TYPES FROM API DOCS
+ *
+ * PAGINATION
+ * limit /character?limit=100
+ * page /character?page=2 (limit default is 10)
+ * offset /character?offset=3 (limit default is 10)
+ *
+ * SORTING
+ * /character?sort=name:asc
+ * /quote?sort=character:desc
+ *
+ * FILTERING
+ * match /character?name=Gandalf
+ * negate match /character?name!=Frodo
+ *
+ * include /character?race=Hobbit,Human
+ * exclude /character?race!=Orc,Goblin
+ *
+ * exists /character?name
+ * doesn't exist /character?!name
+ *
+ * regex /character?name=/foot/i OR /character?name!=/foot/i
+ *
+ * less than /movie?budgetInMillions<100
+ * greater than /movie?academyAwardWins>0
+ * greater than or equal to /movie?runtimeInMinutes>=160
+ *
+ */
+
+/**
  * Serialize list options into the-one-api's query-string dialect.
  *
- * This is the heart of the SDK's filtering. The API delegates query parsing to
- * `mongoose-query-parser`, which runs `qs.parse()` (URL-decoding) *before* it
- * detects operators. So the wire format is: operators emitted **literally**
- * (e.g. `budgetInMillions>100`, `name!=Frodo`, `!email`), values
- * percent-encoded. `URLSearchParams` can't express this (it would encode the
- * operators and append stray `=`), so the string is built by hand.
+ * The API is a bit unique, in that it doesn't expect traditional query param format.
  *
- * Returns `''` when there is nothing to encode.
+ * E.G. "?runtimeInMinutes<500" is valid, but does not follow the standard query param format of needing a question mark and an equals sign.
  *
- * @example
- * buildQuery({ filter: { academyAwardWins: { $gte: 1 } }, sort: { name: 'asc' }, limit: 10 })
- * // => 'academyAwardWins>=1&sort=name:asc&limit=10'
+ * For that reason, we can't use an off the shelf URL encoder and need to roll our own.
+ *
+ * The rules are:
+ *    keep operators as is (>, =, <, etc)
+ *    URL encode the actual values around the operators (e.g. turn spaces into %20 etc)
  */
 export function buildQuery<T>(options: ListOptions<T> = {}): string {
   const segments: string[] = [];
 
-  if (options.filter) segments.push(...filterSegments(options.filter));
-  if (options.sort) {
-    const sort = sortSegment(options.sort);
-    if (sort) segments.push(sort);
-  }
+  // simple cases with minimal transformation
   if (options.limit !== undefined) segments.push(`limit=${options.limit}`);
   if (options.page !== undefined) segments.push(`page=${options.page}`);
   if (options.offset !== undefined) segments.push(`offset=${options.offset}`);
+
+  // complex cases that require more transformation
+  if (options.filter) segments.push(...buildFilterSegments(options.filter));
+  if (options.sort) segments.push(buildSortSegment(options.sort));
 
   return segments.join('&');
 }
@@ -38,52 +65,54 @@ const COMPARISON_OPERATORS: Record<string, string> = {
   $lte: '<=',
 };
 
-function filterSegments<T>(filter: Filter<T>): string[] {
+function buildFilterSegments<T>(filter: Filter<T>): string[] {
   const segments: string[] = [];
   for (const [field, condition] of Object.entries(filter)) {
     if (condition === undefined) continue;
-    segments.push(...fieldSegments(field, condition));
+    segments.push(...buildFieldSegments(field, condition));
   }
   return segments;
 }
 
 /** Turn one field's condition into one or more `field<op>value` segments. */
-function fieldSegments(field: string, condition: unknown): string[] {
+function buildFieldSegments(field: string, condition: unknown): string[] {
   // Bare RegExp → regex match.
   if (condition instanceof RegExp) {
-    return [`${field}=${regexLiteral(condition)}`];
+    return [`${field}=${formatRegex(condition)}`];
   }
+
   // Array → `$in`.
   if (Array.isArray(condition)) {
     return [`${field}=${condition.map(encodeValue).join(',')}`];
   }
+
   // Operator object → one segment per operator.
   if (isOperatorObject(condition)) {
     return Object.entries(condition)
       .filter(([, value]) => value !== undefined)
-      .map(([operator, value]) => operatorSegment(field, operator, value));
+      .map(([operator, value]) => buildOperatorSegment(field, operator, value));
   }
   // Scalar → equality.
   return [`${field}=${encodeValue(condition)}`];
 }
 
-function operatorSegment(field: string, operator: string, value: unknown): string {
+function buildOperatorSegment(field: string, operator: string, value: unknown): string {
   switch (operator) {
     case '$eq':
       return `${field}=${encodeValue(value)}`;
     case '$ne':
       return value instanceof RegExp
-        ? `${field}!=${regexLiteral(value)}`
+        ? `${field}!=${formatRegex(value)}`
         : `${field}!=${encodeValue(value)}`;
     case '$not':
       if (!(value instanceof RegExp)) {
         throw new Error('Filter operator `$not` only supports a RegExp (negated regex match).');
       }
-      return `${field}!=${regexLiteral(value)}`;
+      return `${field}!=${formatRegex(value)}`;
     case '$in':
-      return `${field}=${asArray(value).map(encodeValue).join(',')}`;
+      return `${field}=${ensureArray(value).map(encodeValue).join(',')}`;
     case '$nin':
-      return `${field}!=${asArray(value).map(encodeValue).join(',')}`;
+      return `${field}!=${ensureArray(value).map(encodeValue).join(',')}`;
     case '$gt':
     case '$gte':
     case '$lt':
@@ -96,12 +125,8 @@ function operatorSegment(field: string, operator: string, value: unknown): strin
   }
 }
 
-function sortSegment<T>(sort: Sort<T>): string | undefined {
-  const entries = Object.entries(sort).filter(([, direction]) => direction !== undefined);
-  const first = entries[0];
-  if (!first) return undefined;
-  const [field, direction] = first;
-  return `sort=${field}:${direction}`;
+function buildSortSegment<T>(sort: Sort<T>): string {
+  return `sort=${String(sort.field)}:${sort.direction ?? 'asc'}`;
 }
 
 /** A plain object carrying operators — not a RegExp or array (handled earlier). */
@@ -109,7 +134,7 @@ function isOperatorObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-function asArray(value: unknown): unknown[] {
+function ensureArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [value];
 }
 
@@ -119,6 +144,6 @@ function encodeValue(value: unknown): string {
 }
 
 /** Render a RegExp as the API expects: `/source/flags` (left raw for the parser). */
-function regexLiteral(regex: RegExp): string {
+function formatRegex(regex: RegExp): string {
   return `/${regex.source}/${regex.flags}`;
 }

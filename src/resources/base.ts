@@ -46,7 +46,7 @@ export class BaseResource<T> {
    */
   async *listAll(options: ListOptions<T> = {}): AsyncGenerator<T> {
     let page = options.page ?? 1;
-    for (;;) {
+    while (true) {
       const result = await this.list({ ...options, page });
       yield* result.results;
       if (result.results.length === 0 || page >= result.pages) break;

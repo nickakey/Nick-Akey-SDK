@@ -85,10 +85,14 @@ describe('buildQuery', () => {
   });
 
   describe('sort, pagination, and composition', () => {
-    it('serializes a typed sort object to field:direction', () => {
-      expect(buildQuery<Movie>({ sort: { boxOfficeRevenueInMillions: 'desc' } })).toBe(
-        'sort=boxOfficeRevenueInMillions:desc',
-      );
+    it('serializes a typed sort to field:direction', () => {
+      expect(
+        buildQuery<Movie>({ sort: { field: 'boxOfficeRevenueInMillions', direction: 'desc' } }),
+      ).toBe('sort=boxOfficeRevenueInMillions:desc');
+    });
+
+    it('defaults sort direction to asc', () => {
+      expect(buildQuery<Movie>({ sort: { field: 'name' } })).toBe('sort=name:asc');
     });
 
     it('passes through limit / page / offset', () => {
@@ -99,10 +103,10 @@ describe('buildQuery', () => {
       expect(
         buildQuery<Movie>({
           filter: { academyAwardWins: { $gte: 1 } },
-          sort: { name: 'asc' },
+          sort: { field: 'name', direction: 'asc' },
           limit: 10,
         }),
-      ).toBe('academyAwardWins>=1&sort=name:asc&limit=10');
+      ).toBe('limit=10&academyAwardWins>=1&sort=name:asc');
     });
 
     it('ignores undefined conditions', () => {

@@ -59,6 +59,7 @@ await lotr.quotes.get(id); // GET /quote/{id}
 
 Filters are objects keyed by the resource's fields. The value's shape decides the operator:
 
+
 | You write                             | Means          | Sends                   |
 | ------------------------------------- | -------------- | ----------------------- |
 | `{ name: 'Gandalf' }`                 | equals         | `name=Gandalf`          |
@@ -72,6 +73,7 @@ Filters are objects keyed by the resource's fields. The value's shape decides th
 | `{ name: /towers/i }`                 | regex match    | `name=/towers/i`        |
 | `{ name: { $not: /^The/ } }`          | negated regex  | `name!=/^The/`          |
 
+
 Filters are **field-aware**: comparison operators are only offered on numeric fields, regex only on string fields, and a value must match its field's type — so `{ budgetInMillions: '100' }` is a compile error.
 
 ```ts
@@ -84,7 +86,7 @@ const epics = await lotr.movies.list({
 });
 ```
 
-> The operators are typed to the SDK's supported set — this is **not** a general MongoDB passthrough. `$or`, `$elemMatch`, etc. are intentionally not exposed (see [`design.md`](./design.md)).
+> The operators are typed to the SDK's supported set — this is **not** a general MongoDB passthrough. `$or`, `$elemMatch`, etc. are intentionally not exposed (see `[design.md](./design.md)`).
 
 ## Sorting & pagination
 
@@ -111,7 +113,9 @@ interface Page<T> {
 
 ### Auto-pagination
 
-`listAll()` returns an async iterator that lazily walks every page (sequential, to stay under the rate limit):
+`listAll()` returns an async iterator that lazilfire
+
+y walks every page (sequential, to stay under the rate limit):
 
 ```ts
 for await (const movie of lotr.movies.listAll({ filter: { academyAwardWins: { $gte: 1 } } })) {
@@ -138,6 +142,7 @@ try {
 }
 ```
 
+
 | Class                     | When                                 |
 | ------------------------- | ------------------------------------ |
 | `LotrAuthenticationError` | 401 — bad/missing key                |
@@ -147,6 +152,7 @@ try {
 | `LotrRateLimitError`      | 429 (carries `retryAfter`)           |
 | `LotrConnectionError`     | network failure (no response)        |
 | `LotrAPIError`            | 5xx / anything else                  |
+
 
 Transient failures (429, 5xx, network) are retried automatically with exponential backoff and jitter, honoring `Retry-After`. Tune or disable it:
 
@@ -172,7 +178,7 @@ npm test                 # unit tests — fully mocked, no network or key needed
 npm run test:integration # live tests against the real API (needs LOTR_API_KEY)
 ```
 
-Unit tests stub `fetch` (no network-intercept library) and use fake timers for the retry/backoff logic. The integration suite self-skips when no key is present.
+Unit tests stub `fetch` (no network-intercept library) and use fake timers for the retry/backoff logic. The integration suite reads `LOTR_API_KEY` from a local `.env` (auto-loaded) or the environment, and **self-skips when no key is present**.
 
 ## Demo
 
@@ -183,6 +189,7 @@ npm run demo
 
 ## Scripts
 
+
 | Script                     | Does                                |
 | -------------------------- | ----------------------------------- |
 | `npm run build`            | Bundle ESM + CJS + types (`tsdown`) |
@@ -191,6 +198,7 @@ npm run demo
 | `npm test`                 | Unit tests                          |
 | `npm run test:integration` | Live API tests                      |
 | `npm run demo`             | Run the demo                        |
+
 
 ## Security
 

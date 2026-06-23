@@ -24,8 +24,8 @@ describe('Lotr client construction', () => {
     const fetchStub = queuedFetch([response(200, envelope([]))]);
     const lotr = new Lotr({ baseUrl: 'https://api.test/v2', fetch: fetchStub });
     await lotr.movies.list();
-    const init = fetchStub.mock.calls[0][1] as RequestInit;
-    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer env-key');
+    const [, init] = fetchStub.mock.calls[0] as unknown as [string, RequestInit];
+    expect((init.headers as Record<string, string>).Authorization).toBe(`Bearer ${process.env.LOTR_API_KEY}`);
   });
 });
 
@@ -44,9 +44,8 @@ describe('movies.list', () => {
 
     expect(page.results).toEqual([{ id: 'm1', name: 'The Two Towers', academyAwardWins: 2 }]);
     expect(page.total).toBe(1);
-    expect(fetchStub.mock.calls[0][0]).toBe(
-      'https://api.test/v2/movie?academyAwardWins>=1&limit=1',
-    );
+    const [url] = fetchStub.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('https://api.test/v2/movie?limit=1&academyAwardWins>=1');
   });
 });
 
@@ -56,13 +55,15 @@ describe('movies.get', () => {
     const movie = await makeLotr(fetchStub).movies.get('m1');
 
     expect(movie).toEqual({ id: 'm1', name: 'X' });
-    expect(fetchStub.mock.calls[0][0]).toBe('https://api.test/v2/movie/m1');
+    const [url] = fetchStub.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('https://api.test/v2/movie/m1');
   });
 
   it('url-encodes the id', async () => {
     const fetchStub = queuedFetch([response(200, envelope([{ _id: 'a b' }]))]);
     await makeLotr(fetchStub).movies.get('a b');
-    expect(fetchStub.mock.calls[0][0]).toBe('https://api.test/v2/movie/a%20b');
+    const [url] = fetchStub.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('https://api.test/v2/movie/a%20b');
   });
 
   it('throws LotrNotFoundError when no document matches', async () => {
@@ -82,7 +83,8 @@ describe('movies.quotes (nested route)', () => {
     const page = await makeLotr(fetchStub).movies.quotes('m1', { limit: 5 });
 
     expect(page.results[0]).toMatchObject({ id: 'q1', dialog: 'Fly, you fools!' });
-    expect(fetchStub.mock.calls[0][0]).toBe('https://api.test/v2/movie/m1/quote?limit=5');
+    const [url] = fetchStub.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('https://api.test/v2/movie/m1/quote?limit=5');
   });
 });
 
@@ -90,7 +92,8 @@ describe('quotes.list', () => {
   it('hits /quote', async () => {
     const fetchStub = queuedFetch([response(200, envelope([{ _id: 'q1', dialog: 'hi' }]))]);
     await makeLotr(fetchStub).quotes.list();
-    expect(fetchStub.mock.calls[0][0]).toBe('https://api.test/v2/quote');
+    const [url] = fetchStub.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('https://api.test/v2/quote');
   });
 });
 
@@ -109,7 +112,8 @@ describe('listAll (auto-pagination)', () => {
 
     expect(ids).toEqual(['A', 'B', 'C']);
     expect(fetchStub).toHaveBeenCalledTimes(2);
-    expect(fetchStub.mock.calls[1][0]).toContain('page=2');
+    const [secondUrl] = fetchStub.mock.calls[1] as unknown as [string, RequestInit];
+    expect(secondUrl).toContain('page=2');
   });
 
   it('stops after a single page when there is only one', async () => {
