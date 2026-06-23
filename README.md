@@ -92,11 +92,16 @@ const epics = await lotr.movies.list({
 
 ```ts
 await lotr.movies.list({
-  sort: { boxOfficeRevenueInMillions: 'desc' }, // field:asc | field:desc
+  sort: { field: 'boxOfficeRevenueInMillions', direction: 'desc' }, // direction defaults to 'asc'
   limit: 10,
   page: 2,
 });
+
+// The API supports a single sort field, so `sort` takes exactly one.
 ```
+
+> [!WARNING]
+> **Upstream API sort limitation** ([gitfrosh/lotr-api#228](https://github.com/gitfrosh/lotr-api/issues/228)). The live API currently returns **HTTP 500** when sorting by many fields — including **every `movie` field** and `quote.dialog` — because those fields aren't indexed server-side. (Sorting works where an index exists, e.g. `character?sort=name` or `?sort=_id`.) This is a bug in the API, not the SDK: `buildQuery` emits the documented `field:asc|desc` format correctly, verified against fields the API *can* sort. When a sort fails this way, the SDK surfaces it as a `LotrAPIError` with `statusCode: 500`. I filed the issue upstream with a full repro.
 
 A `list()` result is a `Page<T>`:
 

@@ -136,6 +136,10 @@ A separate, opt-in integration suite (`npm run test:integration`) hits the real 
 - **`select` / `populate` / `distinct` / `$or`**: not in the documented contract (see _Type-safe filtering_).
 - **Publishing to npm**: out of scope for the exercise.
 
+## Known upstream issues
+
+While testing against the live API I found that **sorting returns HTTP 500 for any field without a database index** — which includes *every* `movie` field and `quote.dialog`. It's not a result-size problem: sorting by `_id` (always indexed) works on every collection, including the 8-document `movies`, while no other `movie` field sorts. The SDK emits the documented `field:asc|desc` format correctly (verified against fields the API *can* sort, e.g. `character?sort=name`), so this is an API-side bug, not the SDK's. I reported it upstream with a full repro: [gitfrosh/lotr-api#228](https://github.com/gitfrosh/lotr-api/issues/228). The SDK surfaces these as a `LotrAPIError` (`statusCode: 500`) rather than masking them.
+
 ## Possible next steps
 
 - Optional zod validation as a peer dependency.
